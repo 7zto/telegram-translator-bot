@@ -57,8 +57,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = message.text or ""
 
-    # التحقق إذا تم ذكر البوت
-    if BOT_USERNAME in text:
+    # التحقق إذا تم ذكر البوت أو كُتب "ترجملي"
+    if BOT_USERNAME in text or text.strip() == "ترجملي":
         # التحقق إذا كانت الرسالة تحتوي على ريبلاي
         if not message.reply_to_message:
             await message.reply_text("❌ يجب أن ترد على رسالة تحتوي على نص إنجليزي.")
