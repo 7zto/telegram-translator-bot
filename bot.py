@@ -1,4 +1,3 @@
-# bot.py
 import logging
 import requests
 from telegram import Update
@@ -73,16 +72,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # === بدء البوت ===
 async def main():
-    # ⚠️ هنا نستخدم Application فقط — وليس Updater أبدًا
     application = Application.builder().token(BOT_TOKEN).build()
-
-    # إضافة معالج الرسائل
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    # بدء الاستماع للتحديثات
     logger.info("🚀 البوت يعمل...")
     await application.run_polling()
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    main()  # بدون asyncio.run()
