@@ -19,9 +19,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# تخزين آخر رسالة إنجليزية في كل مجموعة
-last_english_messages = {}
-
 async def translate_text(text: str) -> str:
     """ترجمة النص من الإنجليزية إلى العربية باستخدام DeepL"""
     try:
@@ -47,7 +44,6 @@ def is_english_text(text: str) -> bool:
     """التحقق إذا كان النص يحتوي على كلمات إنجليزية (حتى لو مختلط)"""
     if not text or not text.strip():
         return False
-    # نبحث عن وجود أحرف لاتينية (إنجليزية)
     return bool(re.search(r'[a-zA-Z]', text))
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -61,28 +57,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = message.text or ""
 
-    # إذا كانت الرسالة تحتوي على ذكر البوت
+    # التحقق إذا تم ذكر البوت
     if BOT_USERNAME in text:
-        # البحث عن آخر رسالة إنجليزية في هذه المجموعة
-        last_msg = last_english_messages.get(chat_id)
-        if last_msg and is_english_text(last_msg['text']):
-            # ترجمة النص
-            translated = await translate_text(last_msg['text'])
-            # الرد على الرسالة الأصلية
-            await message.reply_text(
-                translated,
-                reply_to_message_id=last_msg['message_id']
-            )
-        else:
-            await message.reply_text("❌ لم أجد رسالة إنجليزية لأترجمها.")
-        return
+        # التحقق إذا كانت الرسالة تحتوي على ريبلاي
+        if not message.reply_to_message:
+            await message.reply_text("❌ يجب أن ترد على رسالة تحتوي على نص إنجليزي.")
+            return
 
-    # تخزين الرسالة الحالية إذا كانت تحتوي على نص إنجليزي
-    if is_english_text(text):
-        last_english_messages[chat_id] = {
-            'text': text,
-            'message_id': message.message_id
-        }
+        # جلب نص الرسالة التي تم الرد عليها
+        original_text = message.reply_to_message.text or ""
+
+        # التحقق إذا كان النص إنجليزيًا
+        if not is_english_text(original_text):
+            await message.reply_text("❌ الرسالة التي رددت عليها لا تحتوي على نص إنجليزي.")
+            return
+
+        # ترجمة النص
+        translated = await translate_text(original_text)
+
+        # الرد على الرسالة التي تم الرد عليها (الرسالة الأصلية)
+        await message.reply_text(
+            translated,
+            reply_to_message_id=message.reply_to_message.message_id
+        )
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     """معالجة الأخطاء"""
