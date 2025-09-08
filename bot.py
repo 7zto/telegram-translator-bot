@@ -1,7 +1,10 @@
+import os
+import asyncio
 import logging
-import requests
 from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, ContextTypes
+import httpx
+import re
 
 # === الإعدادات ===
 BOT_TOKEN = "8286042975:AAFM9Jp5bn8Cz6_h_iSFdEIMuysoi8B1wbI"
@@ -9,73 +12,94 @@ DEEPL_API_KEY = "c0f5583c-3977-4c39-9747-aabf78cd085c:fx"
 DEEPL_API_URL = "https://api-free.deepl.com/v2/translate"
 BOT_USERNAME = "@Bo3tbtranslatorbot"
 
-# === إعداد التسجيل (Logging) ===
+# === التهيئة ===
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# === وظيفة الترجمة عبر DeepL ===
-def translate_text(text: str, target_lang: str = "AR", source_lang: str = "EN") -> str:
+# تخزين آخر رسالة إنجليزية في كل مجموعة
+last_english_messages = {}
+
+async def translate_text(text: str) -> str:
+    """ترجمة النص من الإنجليزية إلى العربية باستخدام DeepL"""
     try:
-        response = requests.post(
-            DEEPL_API_URL,
-            headers={
-                "Authorization": f"DeepL-Auth-Key {DEEPL_API_KEY}",
-                "Content-Type": "application/x-www-form-urlencoded"
-            },
-            data={
-                "text": text,
-                "target_lang": target_lang,
-                "source_lang": source_lang
-            }
-        )
-        if response.status_code == 200:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                DEEPL_API_URL,
+                headers={"Authorization": f"DeepL-Auth-Key {DEEPL_API_KEY}"},
+                data={
+                    "text": text,
+                    "source_lang": "EN",
+                    "target_lang": "AR"
+                },
+                timeout=10.0
+            )
+            response.raise_for_status()
             result = response.json()
             return result["translations"][0]["text"]
-        else:
-            logger.error(f"DeepL Error: {response.status_code} - {response.text}")
-            return None
     except Exception as e:
-        logger.error(f"Exception in translate_text: {e}")
-        return None
+        logger.error(f"خطأ في الترجمة: {e}")
+        return "❌ حدث خطأ أثناء الترجمة."
 
-# === معالج الرسائل ===
+def is_english_text(text: str) -> bool:
+    """التحقق إذا كان النص يحتوي على كلمات إنجليزية (حتى لو مختلط)"""
+    if not text or not text.strip():
+        return False
+    # نبحث عن وجود أحرف لاتينية (إنجليزية)
+    return bool(re.search(r'[a-zA-Z]', text))
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """معالجة الرسائل في المجموعات"""
     message = update.message
+    chat_id = message.chat_id
 
-    # التحقق: هل الرسالة في مجموعة؟
-    if message.chat.type not in ["group", "supergroup"]:
+    # تجاهل الرسائل الخاصة (البوت يعمل في المجموعات فقط)
+    if message.chat.type not in ['group', 'supergroup']:
         return
 
-    # التحقق: هل يوجد رد على رسالة؟
-    if not message.reply_to_message:
+    text = message.text or ""
+
+    # إذا كانت الرسالة تحتوي على ذكر البوت
+    if BOT_USERNAME in text:
+        # البحث عن آخر رسالة إنجليزية في هذه المجموعة
+        last_msg = last_english_messages.get(chat_id)
+        if last_msg and is_english_text(last_msg['text']):
+            # ترجمة النص
+            translated = await translate_text(last_msg['text'])
+            # الرد على الرسالة الأصلية
+            await message.reply_text(
+                translated,
+                reply_to_message_id=last_msg['message_id']
+            )
+        else:
+            await message.reply_text("❌ لم أجد رسالة إنجليزية لأترجمها.")
         return
 
-    # التحقق: هل تم منشن البوت في الرسالة الحالية؟
-    if BOT_USERNAME not in message.text:
-        return
+    # تخزين الرسالة الحالية إذا كانت تحتوي على نص إنجليزي
+    if is_english_text(text):
+        last_english_messages[chat_id] = {
+            'text': text,
+            'message_id': message.message_id
+        }
 
-    # جلب نص الرسالة التي تم الرد عليها
-    original_text = message.reply_to_message.text
-    if not original_text:
-        await message.reply_text("❌ لا يمكن الترجمة — الرسالة الأصلية لا تحتوي على نص.")
-        return
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+    """معالجة الأخطاء"""
+    logger.error(f"تحديث تسبب في خطأ: {context.error}")
 
-    # الترجمة
-    translated = translate_text(original_text)
-    if translated:
-        await message.reply_text(f"<translation>:\n{translated}")
-    else:
-        await message.reply_text("❌ لا يمكن الترجمة — قد لا تكون الرسالة بالإنجليزية أو حدث خطأ.")
-
-# === بدء البوت ===
-async def main():
+def main():
+    """تشغيل البوت"""
     application = Application.builder().token(BOT_TOKEN).build()
+
+    # إضافة معالج الرسائل
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    logger.info("🚀 البوت يعمل...")
-    await application.run_polling()
+
+    # إضافة معالج الأخطاء
+    application.add_error_handler(error_handler)
+
+    # بدء الاستقبال
+    application.run_polling()
 
 if __name__ == "__main__":
-    main()  # بدون asyncio.run()
+    main()
