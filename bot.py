@@ -1,7 +1,7 @@
 # bot.py
 import logging
 import requests
-from telegram import Update
+from telegram import Update, Message
 from telegram.ext import Application, MessageHandler, filters, ContextTypes
 
 # === الإعدادات ===
@@ -48,15 +48,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # التحقق: هل الرسالة في مجموعة؟
     if message.chat.type not in ["group", "supergroup"]:
-        return  # تجاهل إذا كانت في الخاص
+        return
 
     # التحقق: هل يوجد رد على رسالة؟
     if not message.reply_to_message:
-        return  # لا يوجد رد — تجاهل
+        return
 
     # التحقق: هل تم منشن البوت في الرسالة الحالية؟
     if BOT_USERNAME not in message.text:
-        return  # لم يُذكر البوت — تجاهل
+        return
 
     # جلب نص الرسالة التي تم الرد عليها
     original_text = message.reply_to_message.text
@@ -64,17 +64,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await message.reply_text("❌ لا يمكن الترجمة — الرسالة الأصلية لا تحتوي على نص.")
         return
 
-    # التحقق: هل النص إنجليزي؟ (اختياري — نستخدم DeepL لاكتشاف اللغة لاحقًا إذا أردت)
-    # الآن نترجم مباشرة ونفترض أنه إنجليزي — لكن إذا فشلت الترجمة نعرف أنها ليست كذلك
+    # الترجمة
     translated = translate_text(original_text)
-
     if translated:
         await message.reply_text(f"<translation>:\n{translated}")
     else:
         await message.reply_text("❌ لا يمكن الترجمة — قد لا تكون الرسالة بالإنجليزية أو حدث خطأ.")
 
 # === بدء البوت ===
-def main():
+async def main():
     application = Application.builder().token(BOT_TOKEN).build()
 
     # إضافة معالج الرسائل
@@ -82,7 +80,8 @@ def main():
 
     # بدء الاستماع للتحديثات
     logger.info("🚀 البوت يعمل...")
-    application.run_polling()
+    await application.run_polling()
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())
