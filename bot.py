@@ -1,7 +1,7 @@
 # bot.py
 import logging
 import requests
-from telegram import Update, Message
+from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, ContextTypes
 
 # === الإعدادات ===
@@ -73,6 +73,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # === بدء البوت ===
 async def main():
+    # ⚠️ هنا نستخدم Application فقط — وليس Updater أبدًا
     application = Application.builder().token(BOT_TOKEN).build()
 
     # إضافة معالج الرسائل
