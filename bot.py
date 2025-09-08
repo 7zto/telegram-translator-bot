@@ -64,8 +64,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await message.reply_text("❌ يجب أن ترد على رسالة تحتوي على نص إنجليزي.")
             return
 
-        # جلب نص الرسالة التي تم الرد عليها
-        original_text = message.reply_to_message.text or ""
+        # جلب الرسالة التي تم الرد عليها
+        original_msg = message.reply_to_message
+        original_text = original_msg.text or original_msg.caption or ""
 
         # التحقق إذا كان النص إنجليزيًا
         if not is_english_text(original_text):
@@ -75,10 +76,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # ترجمة النص
         translated = await translate_text(original_text)
 
-        # الرد على الرسالة التي تم الرد عليها (الرسالة الأصلية)
+        # الرد على الرسالة الأصلية
         await message.reply_text(
             translated,
-            reply_to_message_id=message.reply_to_message.message_id
+            reply_to_message_id=original_msg.message_id
         )
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
